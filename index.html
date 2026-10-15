@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>StyleScribe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+:root{--bg:#f6f7fb;--surface:#fff;--text:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#4f46e5;--accent-text:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0f19;--surface:#151b2b;--text:#f3f4f6;--muted:#9ca3af;--line:#27304a;--accent:#818cf8;--accent-text:#0b0f19}}
+:root[data-theme="dark"]{--bg:#0b0f19;--surface:#151b2b;--text:#f3f4f6;--muted:#9ca3af;--line:#27304a;--accent:#818cf8;--accent-text:#0b0f19}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+header{padding:14px 16px 6px;display:flex;justify-content:space-between;align-items:baseline}
+h1{font-size:18px;margin:0}
+#count{font-size:12px;color:var(--muted)}
+.bar{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;scrollbar-width:none}
+.bar button{flex:0 0 auto;min-width:44px;height:44px;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;font-size:17px}
+.bar button:active{background:var(--accent);color:var(--accent-text)}
+main{flex:1;padding:4px 12px 8px;display:flex;min-height:0}
+#ed{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;font-size:18px;line-height:1.5;overflow-y:auto;outline:none;white-space:pre-wrap;word-break:break-word}
+#ed:empty:before{content:attr(data-ph);color:var(--muted)}
+.copy{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 12px 12px}
+.copy button{height:50px;border:0;border-radius:12px;font-size:15px;font-weight:600;background:var(--accent);color:var(--accent-text)}
+.copy button.alt{background:var(--surface);color:var(--text);border:1px solid var(--line)}
+.copy small{display:block;font-weight:400;font-size:11px;opacity:.8}
+#ed ul,#ed ol{margin:4px 0;padding-left:24px}
+#sheet{position:fixed;left:0;right:0;bottom:0;max-height:42%;overflow-y:auto;background:var(--surface);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;z-index:5}
+#sheet[hidden]{display:none}
+#sheet button{height:46px;font-size:24px;border:0;background:transparent;border-radius:10px}
+#sheet button.wide{grid-column:1/-1;font-size:15px;text-align:left;padding:0 12px;background:var(--bg);color:var(--text)}
+#toast{z-index:9;position:fixed;left:50%;bottom:130px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header><h1>✍️ StyleScribe</h1><span id="count"></span></header>
+<div class="bar" id="bar">
+  <button data-c="bold"><b>B</b></button>
+  <button data-c="italic"><i>I</i></button>
+  <button data-c="underline"><u>U</u></button>
+  <button data-c="strikeThrough"><s>S</s></button>
+  <button data-c="mono" style="font-family:monospace">M</button>
+  <button data-c="ul">•</button>
+  <button data-c="ol">1.</button>
+  <button data-c="emoji">😊</button>
+  <button data-c="tpl">▤</button>
+  <button data-c="undo">↶</button>
+  <button data-c="redo">↷</button>
+  <button data-c="clear">Tx</button>
+  <button data-c="wipe">🗑</button>
+</div>
+<main><div id="ed" contenteditable="true" data-ph="Write here. Select text, then tap B, I, U, S or M…" spellcheck="true"></div></main>
+<div class="copy">
+  <button id="cx">Copy for X / LinkedIn<small>Instagram, Facebook, Telegram</small></button>
+  <button id="cw">Copy for WhatsApp<small>uses *bold* _italic_ ~strike~</small></button>
+</div>
+<div id="sheet" hidden></div>
+<div id="toast"></div>
+<script>
+(function(){
+var ed=document.getElementById('ed'),toast=document.getElementById('toast');
+try{document.execCommand('styleWithCSS',false,false)}catch(e){}
+
+// ---- PWA install bits (manifest + icon built at runtime) ----
+try{
+  var cv=document.createElement('canvas');cv.width=cv.height=192;var x=cv.getContext('2d');
+  x.fillStyle='#4f46e5';x.fillRect(0,0,192,192);x.fillStyle='#fff';x.font='bold 110px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('S',96,104);
+  var icon=cv.toDataURL('image/png');
+  var l=document.createElement('link');l.rel='apple-touch-icon';l.href=icon;document.head.appendChild(l);
+  var m={name:'StyleScribe',short_name:'StyleScribe',display:'standalone',start_url:location.href,background_color:'#111827',theme_color:'#111827',icons:[{src:icon,sizes:'192x192',type:'image/png'}]};
+  if(document.querySelector('link[rel=manifest]'))throw 0;var ml=document.createElement('link');ml.rel='manifest';ml.href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/manifest+json'}));document.head.appendChild(ml);
+}catch(e){}
+
+// ---- Toolbar ----
+document.getElementById('bar').addEventListener('mousedown',function(e){e.preventDefault()});
+document.getElementById('bar').addEventListener('click',function(e){
+  var b=e.target.closest('button');if(!b)return;var c=b.dataset.c;ed.focus();
+  if(c==='mono'){
+    var s=window.getSelection();
+    if(s.rangeCount&&!s.isCollapsed){
+      var inMono=closestMono(s.anchorNode);
+      if(inMono){document.execCommand('fontName',false,'Arial');}
+      else document.execCommand('fontName',false,'monospace');
+    }
+  }else if(c==='clear'){document.execCommand('removeFormat');document.execCommand('fontName',false,'Arial');}
+  else if(c==='ul')document.execCommand('insertUnorderedList');
+  else if(c==='ol')document.execCommand('insertOrderedList');
+  else if(c==='emoji')openSheet('emoji');
+  else if(c==='tpl')openSheet('tpl');
+  else if(c==='wipe'){if(confirm('Delete everything?')){ed.innerHTML='';save();}}
+  else document.execCommand(c);
+  save();
+});
+function closestMono(n){while(n&&n!==ed){if(n.nodeType===1&&isMono(n))return n;n=n.parentNode}return null}
+function isMono(n){var f=(n.getAttribute&&n.getAttribute('face')||'')+(n.style&&n.style.fontFamily||'');return /mono|courier/i.test(f)}
+
+// ---- Read formatted runs from the DOM ----
+function runs(){
+  var out=[];
+  function push(t,st){if(!t)return;var l=out[out.length-1];
+    if(l&&l.b===st.b&&l.i===st.i&&l.s===st.s&&l.u===st.u&&l.m===st.m)l.t+=t;else out.push({t:t,b:st.b,i:st.i,s:st.s,u:st.u,m:st.m})}
+  function endsNL(){var l=out[out.length-1];return !l||/\n$/.test(l.t)}
+  function walk(n,st){
+    if(n.nodeType===3){push(n.nodeValue.replace(/\u00a0/g,' '),st);return}
+    if(n.nodeType!==1)return;
+    var tg=n.tagName,ns={b:st.b,i:st.i,s:st.s,u:st.u,m:st.m},cs=n.style||{};
+    if(tg==='B'||tg==='STRONG'||/bold|[6-9]00/.test(cs.fontWeight||''))ns.b=1;
+    if(tg==='I'||tg==='EM'||cs.fontStyle==='italic')ns.i=1;
+    if(tg==='S'||tg==='STRIKE'||tg==='DEL'||/line-through/.test(cs.textDecoration||cs.textDecorationLine||''))ns.s=1;
+    if(tg==='U'||/underline/.test(cs.textDecoration||cs.textDecorationLine||''))ns.u=1;
+    if(isMono(n)||tg==='CODE'||tg==='TT')ns.m=1;
+    if(tg==='BR'){push('\n',st);return}
+    var block=(tg==='DIV'||tg==='P'||tg==='LI');
+    if(block&&!endsNL())push('\n',st);
+    if(tg==='LI'){var pr=n.parentNode,pre='• ';if(pr&&pr.tagName==='OL'){var k=1,sb=n;while((sb=sb.previousElementSibling))k++;pre=k+'. '}push(pre,{})}
+    for(var c=n.firstChild;c;c=c.nextSibling)walk(c,ns);
+    if(block&&!endsNL())push('\n',st);
+  }
+  walk(ed,{});
+  if(out.length)out[out.length-1].t=out[out.length-1].t.replace(/\n+$/,'');
+  return out;
+}
+
+// ---- Unicode styling (works on X, LinkedIn, Instagram, Facebook...) ----
+var B={u:0x1D400,l:0x1D41A,d:0x1D7CE},I={u:0x1D434,l:0x1D44E},BI={u:0x1D468,l:0x1D482},M={u:0x1D670,l:0x1D68A,d:0x1D7F6};
+function mapCh(ch,r){
+  var c=ch.charCodeAt(0);
+  if(c>=65&&c<=90)return String.fromCodePoint(r.u+c-65);
+  if(c>=97&&c<=122){if(r===I&&ch==='h')return '\u210E';return String.fromCodePoint(r.l+c-97)}
+  if(c>=48&&c<=57&&r.d)return String.fromCodePoint(r.d+c-48);
+  return ch;
+}
+function uni(r){
+  var t=r.t;
+  var set=r.m?M:(r.b&&r.i)?BI:r.b?B:r.i?I:null;
+  var s=t;
+  if(set){s='';for(var ch of t)s+=mapCh(ch,set)}
+  if(r.u||r.s){var o='';for(var ch of s){o+=ch;if(!/\s/.test(ch)){if(r.u)o+='\u0332';if(r.s)o+='\u0336'}}s=o}
+  return s;
+}
+function toUnicode(){return runs().map(uni).join('')}
+
+// ---- WhatsApp markup ----
+function toWhatsApp(){
+  return runs().map(function(r){
+    if(!(r.b||r.i||r.s||r.m))return r.t;
+    return r.t.split(/(\n)/).map(function(p){
+      if(p==='\n')return p;
+      var mt=p.match(/^(\s*)([\s\S]*?)(\s*)$/);if(!mt[2])return p;
+      var core=mt[2];
+      if(r.m)core='```'+core+'```';
+      else{if(r.i)core='_'+core+'_';if(r.s)core='~'+core+'~';if(r.b)core='*'+core+'*'}
+      return mt[1]+core+mt[3];
+    }).join('');
+  }).join('');
+}
+
+// ---- Copy ----
+function say(t){toast.textContent=t;toast.classList.add('on');setTimeout(function(){toast.classList.remove('on')},1800)}
+function copy(txt,label){
+  if(!txt.trim()){say('Nothing to copy yet');return}
+  function fb(){var a=document.createElement('textarea');a.value=txt;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();try{document.execCommand('copy');say('Copied for '+label+' ✓')}catch(e){say('Copy failed')}document.body.removeChild(a)}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){say('Copied for '+label+' ✓')},fb);else fb();
+}
+document.getElementById('cx').onclick=function(){copy(toUnicode(),'X / LinkedIn')};
+document.getElementById('cw').onclick=function(){copy(toWhatsApp(),'WhatsApp')};
+
+// ---- Autosave + counter ----
+function save(){try{localStorage.setItem('ss_doc',ed.innerHTML)}catch(e){}count()}
+function count(){document.getElementById('count').textContent=Array.from(ed.innerText.replace(/\n$/,'')).length+' chars'}
+try{var d=localStorage.getItem('ss_doc');if(d)ed.innerHTML=d}catch(e){}
+ed.addEventListener('input',save);
+
+// ---- Emoji + templates sheet ----
+var sheet=document.getElementById('sheet'),lastR=null;
+document.addEventListener('selectionchange',function(){var s=getSelection();if(s.rangeCount&&ed.contains(s.anchorNode))lastR=s.getRangeAt(0).cloneRange()});
+sheet.addEventListener('mousedown',function(e){e.preventDefault()});
+var EMO='😀 😂 🥹 😍 🤔 😎 🙌 🙏 👏 💪 🔥 ✨ 💡 🚀 🎯 ✅ ❌ ⚠️ 📌 📢 📚 💼 💰 📈 🧵 👇 👉 ➡️ ❤️ 💯 🎉 🌍 ⏰ 📍 🔗 💬 🤝 🧠 ⭐ ✍️ 📝 👀 😅 🤣 😭 🥳 😴 🙈 🤯 😤 🫡 🫶'.split(' ');
+var TPL=[
+['X hook post','<b>One bold hook line.</b><br><br>The story or insight in two or three short lines.<br><br><i>Takeaway:</i> the lesson in one sentence.<br><br>Follow for more. 🔁'],
+['X thread starter','<b>I learned something big (a thread 🧵)</b><br><br>1/ Start with the problem.<br>2/ Show what changed.<br>3/ Give the lesson.<br><br><i>Reply with your take 👇</i>'],
+['LinkedIn post','<b>Headline that earns the click</b><br><br>Opening line with the story.<br><br><ul><li><b>Point one:</b> detail</li><li><b>Point two:</b> detail</li><li><b>Point three:</b> detail</li></ul>What do you think? Share below 👇'],
+['WhatsApp announcement','<b>📢 Announcement title</b><br><br><ul><li><b>Date:</b> —</li><li><b>Time:</b> —</li><li><b>Venue:</b> —</li></ul><i>Please share with others.</i>'],
+['Quote card','<i>“Your quote goes here.”</i><br><br>— <b>Name</b>']
+];
+function put(fn){ed.focus();var s=getSelection();if(!s.rangeCount||!ed.contains(s.anchorNode)){var r=lastR;if(!r){r=document.createRange();r.selectNodeContents(ed);r.collapse(false)}s.removeAllRanges();s.addRange(r)}fn();save()}
+function openSheet(k){
+  if(!sheet.hidden&&sheet.dataset.k===k){sheet.hidden=true;return}
+  sheet.dataset.k=k;sheet.hidden=false;sheet.innerHTML='';
+  if(k==='emoji')EMO.forEach(function(e){var b=document.createElement('button');b.textContent=e;b.onclick=function(){put(function(){document.execCommand('insertText',false,e)})};sheet.appendChild(b)});
+  else TPL.forEach(function(t){var b=document.createElement('button');b.className='wide';b.textContent=t[0];b.onclick=function(){put(function(){document.execCommand('insertHTML',false,t[1])});sheet.hidden=true};sheet.appendChild(b)});
+}
+
+// ---- Offline (active when hosted with sw.js beside this file) ----
+if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0){try{navigator.serviceWorker.register('sw.js').catch(function(){})}catch(e){}}
+// paste as plain text so outside styling doesn't sneak in
+ed.addEventListener('paste',function(e){e.preventDefault();var t=(e.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,t)});
+count();
+})();
+</script>
+</body>
+</html>
